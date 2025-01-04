@@ -201,40 +201,27 @@ function simulateEvent(event) {
 
 // Capture client-side events and send them to Firebase
 function captureClientEvents() {
-    document.addEventListener("mousemove", (event) => {
+    remoteScreen.addEventListener("mousemove", (event) => {
+        const rect = remoteScreen.getBoundingClientRect(); // Get position of the remote screen on the page
         sendControlEvent({
             type: "mousemove",
-            x: event.clientX,
-            y: event.clientY,
+            x: event.clientX - rect.left, // Adjust x by subtracting the screen's left position
+            y: event.clientY - rect.top,  // Adjust y by subtracting the screen's top position
         });
     });
 
-    document.addEventListener("click", (event) => {
+    remoteScreen.addEventListener("click", (event) => {
+        const rect = remoteScreen.getBoundingClientRect();
         sendControlEvent({
             type: "click",
-            x: event.clientX,
-            y: event.clientY,
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
         });
     });
+
 }
 
-remoteScreen.addEventListener("mousemove", (event) => {
-    const rect = remoteScreen.getBoundingClientRect(); // Get position of the remote screen on the page
-    sendControlEvent({
-        type: "mousemove",
-        x: event.clientX - rect.left, // Adjust x by subtracting the screen's left position
-        y: event.clientY - rect.top,  // Adjust y by subtracting the screen's top position
-    });
-});
 
-remoteScreen.addEventListener("click", (event) => {
-    const rect = remoteScreen.getBoundingClientRect();
-    sendControlEvent({
-        type: "click",
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-    });
-});
 
 // Send captured events to Firebase
 function sendControlEvent(event) {
