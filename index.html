@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Mouse Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #pointer {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .click-effect {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: rgba(255, 0, 0, 0.5);
+            border-radius: 50%;
+            animation: click-animation 0.5s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes click-animation {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            to {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Remote Mouse Control</h1>
+    <div class="controls">
+        <button id="controllerBtn">Start Controller</button>
+        <button id="clientBtn">Start Client</button>
+        <input type="text" placeholder="Enter Name">
+    </div>
+    <div id="pointer"></div>
+
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYzytMpL6FPGcVKPt7KEy-4CcnXzTxhJ8",
+            authDomain: "hisab-kitab-95e11.firebaseapp.com",
+            databaseURL: "https://hisab-kitab-95e11-default-rtdb.firebaseio.com",
+            projectId: "hisab-kitab-95e11",
+            storageBucket: "hisab-kitab-95e11.firebasestorage.app",
+            messagingSenderId: "373894454116",
+            appId: "1:373894454116:web:55de8be5ca9eb6d849f871",
+            measurementId: "G-2D5YN7D526"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        const pointer = document.getElementById('pointer');
+        const controllerBtn = document.getElementById('controllerBtn');
+        const clientBtn = document.getElementById('clientBtn');
+
+        const mouseRef = ref(database, 'mouse');
+
+        // Prevent text selection on the controller side
+        const preventTextSelection = () => {
+            document.body.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+            });
+        };
+
+        // Function for Controller Mode
+        const startController = () => {
+            document.body.style.cursor = "crosshair";
+            preventTextSelection();
+
+            document.addEventListener('mousemove', (event) => {
+                set(mouseRef, {
+                    x: event.clientX,
+                    y: event.clientY,
+                    type: 'move'
+                });
+            });
+
+            document.addEventListener('click', (event) => {
+                set(mouseRef, {
+                    x: event.clientX,
+                    y: event.clientY,
+                    type: 'click',
+                    target: getElementPath(event.target)
+                });
+            });
+
+            document.addEventListener('input', (event) => {
+                const target = event.target;
+                if (target) {
+                    set(mouseRef, {
+                        x: target.offsetLeft,
+                        y: target.offsetTop,
+                        type: 'input',
+                        target: getElementPath(target),
+                        value: target.value
+                    });
+                }
+            });
+
+            alert('Controller Mode Enabled');
+        };
+
+        // Function for Client Mode
+        const startClient = () => {
+            onValue(mouseRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    pointer.style.left = `${data.x}px`;
+                    pointer.style.top = `${data.y}px`;
+
+                    if (data.type === 'click') {
+                        simulateClick(data.x, data.y);
+
+                        const element = getElementByPath(data.target);
+                        if (element) {
+                            element.focus();
+                            element.click();
+                        }
+                    }
+
+                    if (data.type === 'input') {
+                        const element = getElementByPath(data.target);
+                        if (element && element.value !== undefined) {
+                            element.value = data.value;
+                        }
+                    }
+                }
+            });
+
+            alert('Client Mode Enabled');
+        };
+
+        // Simulate click effect
+        const simulateClick = (x, y) => {
+            const clickEffect = document.createElement('div');
+            clickEffect.className = 'click-effect';
+            clickEffect.style.left = `${x - 10}px`;
+            clickEffect.style.top = `${y - 10}px`;
+
+            document.body.appendChild(clickEffect);
+
+            setTimeout(() => {
+                document.body.removeChild(clickEffect);
+            }, 500);
+        };
+
+        // Helper: Generate unique path for an element
+        const getElementPath = (element) => {
+            if (!element) return null;
+            const path = [];
+            while (element && element.nodeType === Node.ELEMENT_NODE) {
+                let selector = element.tagName.toLowerCase();
+                if (element.id) selector += `#${element.id}`;
+                if (element.className) selector += `.${Array.from(element.classList).join('.')}`;
+                path.unshift(selector);
+                element = element.parentNode;
+            }
+            return path.join(' > ');
+        };
+
+        // Helper: Get element by unique path
+        const getElementByPath = (path) => {
+            if (!path) return null;
+            try {
+                return document.querySelector(path);
+            } catch (e) {
+                console.error("Invalid element path:", path);
+                return null;
+            }
+        };
+
+        controllerBtn.addEventListener('click', startController);
+        clientBtn.addEventListener('click', startClient);
+    </script>
+</body>
+
+</html>
