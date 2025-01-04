@@ -12,6 +12,8 @@ const remoteScreen = document.getElementById("remote-screen");
 const permissionDialog = document.getElementById("permission-dialog");
 const enableControlCheckbox = document.getElementById("enable-control");
 const pointer = document.getElementById('pointer');
+const iframe = document.getElementById("iframe");
+
 let hostCode;
 let mediaStream;
 let sharingRequestRef;
@@ -190,12 +192,20 @@ function simulateEvent(event) {
         pointer.style.left = `${event.x}px`;
         pointer.style.top = `${event.y}px`;
     } else if (event.type === "click") {
-        const clickEffect = document.createElement('div');
-        clickEffect.className = 'click-effect';
-        clickEffect.style.left = `${event.x - 10}px`;
-        clickEffect.style.top = `${event.y - 10}px`;
+        const clickEffect = document.createElement("div");
+        clickEffect.classList.add("click-effect");
+        clickEffect.style.left = `${event.x}px`;
+        clickEffect.style.top = `${event.y}px`;
         document.body.appendChild(clickEffect);
-        setTimeout(() => document.body.removeChild(clickEffect), 500);
+
+        setTimeout(() => clickEffect.remove(), 500);
+
+        // Trigger a click event in the iframe
+        const iframeWindow = iframe.contentWindow;
+        iframeWindow.postMessage(
+            { type: "simulateClick", x: event.x, y: event.y },
+            "*"
+        );
     }
 }
 
