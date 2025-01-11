@@ -25,7 +25,7 @@ async function generateUniqueCode() {
      let isUnique = false;
     while (!isUnique) {
         code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Generate a 6-digit number
-         localStorage.setItem("SessionID",code);
+         localStorage.setItem("SessionID",btoa(code));
         const docRef = doc(db, "sessions", code);
         const docSnap = await getDoc(docRef);
 
@@ -35,7 +35,7 @@ async function generateUniqueCode() {
     }               
     }
     else{
-        code = localStorage.getItem("SessionID");
+        code = atob(localStorage.getItem("SessionID"));
     } 
     
   
