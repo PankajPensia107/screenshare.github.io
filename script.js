@@ -20,17 +20,24 @@ var clientCodeForControl;
 // Function to generate a unique device code with numbers only
 async function generateUniqueCode() {
     let code;
-    let isUnique = false;
 
+    if(localStorage.getItem("SessionID) == undefined){
+     let isUnique = false;
     while (!isUnique) {
         code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Generate a 6-digit number
+         localStorage.setItem("SessionID",code);
         const docRef = doc(db, "sessions", code);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
             isUnique = true; // Code is unique
         }
+    }else{
+        code = localStorage.getItem("SessionID");
+    }                
     }
+    
+  
 
     return code;
 }
