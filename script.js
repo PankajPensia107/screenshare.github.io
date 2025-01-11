@@ -92,7 +92,9 @@ async function startScreenSharing() {
 
 // Stop screen sharing
 stopShareBtn.addEventListener("click", async () => {
-    mediaStream.getTracks().forEach(track => track.stop());
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+    }
     await remove(ref(rtdb, `sessions/${hostCode}/stream`));
     stopShareBtn.style.display = "none";
     startShareBtn.style.display = "block";
