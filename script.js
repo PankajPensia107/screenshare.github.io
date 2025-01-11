@@ -21,7 +21,7 @@ var clientCodeForControl;
 async function generateUniqueCode() {
     let code;
 
-    if(localStorage.getItem("SessionID) == undefined){
+    if(localStorage.getItem("SessionID") == undefined){
      let isUnique = false;
     while (!isUnique) {
         code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Generate a 6-digit number
