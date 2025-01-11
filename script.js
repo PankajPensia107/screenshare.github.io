@@ -32,10 +32,11 @@ async function generateUniqueCode() {
         if (!docSnap.exists()) {
             isUnique = true; // Code is unique
         }
-    }else{
-        code = localStorage.getItem("SessionID");
-    }                
+    }               
     }
+    else{
+        code = localStorage.getItem("SessionID");
+    } 
     
   
 
