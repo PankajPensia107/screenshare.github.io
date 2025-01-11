@@ -1,3 +1,4 @@
+// Import Firebase modules
 import { db, rtdb } from "./firebase-config.js";
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore.js";
 import { ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/9.21.0/firebase-database.js";
@@ -9,89 +10,67 @@ const stopShareBtn = document.getElementById("stop-share");
 const clientCodeInput = document.getElementById("client-code");
 const connectBtn = document.getElementById("connect");
 const remoteScreen = document.getElementById("remote-screen");
-const permissionDialog = document.getElementById("permission-dialog");
 const enableControlCheckbox = document.getElementById("enable-control");
-const pointer = document.getElementById('pointer');
-const iframe = document.getElementById("iframe");
+const pointer = document.getElementById("pointer");
 
 let hostCode;
 let mediaStream;
 let sharingRequestRef;
-var clientCodeForControl;
+let clientCodeForControl;
 
-// Function to generate a unique device code with numbers only
+// Generate a unique 6-digit device code
 async function generateUniqueCode() {
-    let code;
-    let isUnique = false;
-
-    while (!isUnique) {
-        code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Generate a 6-digit number
+    while (true) {
+        const code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
         const docRef = doc(db, "sessions", code);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
-            isUnique = true; // Code is unique
+            return code;
         }
     }
-
-    return code;
 }
 
-// Initialize the host's device code
+// Initialize the host code and listeners
 async function initializeHostCode() {
     hostCode = await generateUniqueCode();
-    hostCodeDisplay.innerText += hostCode; // Display the generated code
+    hostCodeDisplay.innerText = `Your Host Code: ${hostCode}`;
 
-    // Save the host code in Firestore with an "available" status
-    const hostDoc = doc(db, "sessions", hostCode);
-    await setDoc(hostDoc, { status: "available", hostCode });
+    await setDoc(doc(db, "sessions", hostCode), { status: "available", hostCode });
 
-    // Listen for incoming sharing requests
     sharingRequestRef = ref(rtdb, `sessions/${hostCode}/request`);
     onValue(sharingRequestRef, (snapshot) => {
         if (snapshot.exists()) {
-            showPermissionDialog(snapshot.val());
+            handleSharingRequest(snapshot.val());
         }
     });
 
-    // Start listening for remote control events
     listenForRemoteControl();
 }
 
-// Show the permission dialog
-function showPermissionDialog(clientCode) {
-    const myModal = new bootstrap.Modal(document.getElementById('exampleModal'));
-    myModal.show();
-    document.getElementById("accept-request").onclick = async () => {
-        myModal.hide(); // Hide the modal when accepted
-        set(ref(rtdb, `sessions/${hostCode}/status`), "accepted");
-        console.log("Request accepted. Starting screen sharing...");
-        // clientCodeForControl = clientCodeForPermission;
-        startScreenSharing(); // Automatically start screen sharing
-    };
+// Handle incoming sharing requests
+function handleSharingRequest(clientCode) {
+    const accept = confirm(`Client ${clientCode} wants to connect. Accept?`);
+    const statusRef = ref(rtdb, `sessions/${hostCode}/status`);
 
-    document.getElementById("reject-request").onclick = async () => {
-        myModal.hide(); // Hide the modal when rejected
-        set(ref(rtdb, `sessions/${hostCode}/status`), "rejected");
-        console.log("Request rejected.");
-    };
-}
-
-// Start screen sharing directly after acceptance
-function startScreenSharing() {
-    startShareBtn.click(); // Trigger the click event of the Start Sharing button
+    if (accept) {
+        set(statusRef, "accepted");
+        startScreenSharing();
+    } else {
+        set(statusRef, "rejected");
+    }
 }
 
 // Start screen sharing
-startShareBtn.addEventListener("click", async () => {
+async function startScreenSharing() {
     try {
         mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
         const streamRef = ref(rtdb, `sessions/${hostCode}/stream`);
-
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
         const video = document.createElement("video");
+
         video.srcObject = mediaStream;
         video.play();
 
@@ -104,26 +83,22 @@ startShareBtn.addEventListener("click", async () => {
         };
 
         setInterval(sendFrame, 100);
-        console.log("Screen sharing started successfully.");
-        stopShareBtn.style.display = "block"; // Show Stop Sharing button
-        startShareBtn.style.display = "none"; // Hide Start Sharing button
-        connectBtn.style.display = "none";
+        startShareBtn.style.display = "none";
+        stopShareBtn.style.display = "block";
     } catch (error) {
-        console.error("Error starting screen sharing:", error);
+        console.error("Failed to start screen sharing:", error);
     }
-});
+}
 
 // Stop screen sharing
 stopShareBtn.addEventListener("click", async () => {
-    mediaStream.getTracks().forEach((track) => track.stop());
+    mediaStream.getTracks().forEach(track => track.stop());
     await remove(ref(rtdb, `sessions/${hostCode}/stream`));
-    console.log("Screen sharing stopped.");
-    stopShareBtn.style.display = "none"; // Hide Stop Sharing button
-    startShareBtn.style.display = "none"; // Show Start Sharing button
-    connectBtn.style.display = "block";
+    stopShareBtn.style.display = "none";
+    startShareBtn.style.display = "block";
 });
 
-// Client connects using the entered device code
+// Connect as a client
 connectBtn.addEventListener("click", async () => {
     const clientCode = clientCodeInput.value.trim();
     if (!clientCode) {
@@ -131,30 +106,25 @@ connectBtn.addEventListener("click", async () => {
         return;
     }
 
-    console.log("Requesting to connect to host with code:", clientCode);
-
     const requestRef = ref(rtdb, `sessions/${clientCode}/request`);
-    await set(requestRef, hostCode); // Send request to host
+    await set(requestRef, hostCode);
 
     const statusRef = ref(rtdb, `sessions/${clientCode}/status`);
     onValue(statusRef, (snapshot) => {
         if (snapshot.exists()) {
             const status = snapshot.val();
             if (status === "accepted") {
-                console.log("Sharing request accepted.");
                 clientCodeForControl = clientCode;
                 startReceivingStream(clientCode);
                 captureClientEvents();
             } else if (status === "rejected") {
-                console.log("Sharing request rejected.");
-                const myModal = new bootstrap.Modal(document.getElementById('exampleModal1'));
-                myModal.show();
+                alert("Your connection request was rejected.");
             }
         }
     });
 });
 
-// Start receiving stream
+// Start receiving the stream
 function startReceivingStream(clientCode) {
     const streamRef = ref(rtdb, `sessions/${clientCode}/stream`);
     onValue(streamRef, (snapshot) => {
@@ -171,22 +141,21 @@ function startReceivingStream(clientCode) {
 // Enable/disable remote control
 enableControlCheckbox.addEventListener("change", async () => {
     const allowControl = enableControlCheckbox.checked;
-    console.log(`Remote control ${allowControl ? "enabled" : "disabled"}`);
     await set(ref(rtdb, `sessions/${hostCode}/allowControl`), allowControl);
 });
 
-// Listen for remote control events from the client
+// Listen for remote control events
 function listenForRemoteControl() {
     const controlRef = ref(rtdb, `sessions/${hostCode}/controlEvents`);
     onValue(controlRef, (snapshot) => {
         if (snapshot.exists() && enableControlCheckbox.checked) {
             const event = snapshot.val();
-            simulateEvent(event); // Simulate the received event on the host's PC
+            simulateEvent(event);
         }
     });
 }
 
-// Simulate received input events on the host's PC
+// Simulate a received input event
 function simulateEvent(event) {
     if (event.type === "mousemove") {
         pointer.style.left = `${event.x}px`;
@@ -197,26 +166,18 @@ function simulateEvent(event) {
         clickEffect.style.left = `${event.x}px`;
         clickEffect.style.top = `${event.y}px`;
         document.body.appendChild(clickEffect);
-
         setTimeout(() => clickEffect.remove(), 500);
-
-        // Trigger a click event in the iframe
-        const iframeWindow = iframe.contentWindow;
-        iframeWindow.postMessage(
-            { type: "simulateClick", x: event.x, y: event.y },
-            "*"
-        );
     }
 }
 
-// Capture client-side events and send them to Firebase
+// Capture client events and send them to Firebase
 function captureClientEvents() {
     remoteScreen.addEventListener("mousemove", (event) => {
-        const rect = remoteScreen.getBoundingClientRect(); // Get position of the remote screen on the page
+        const rect = remoteScreen.getBoundingClientRect();
         sendControlEvent({
             type: "mousemove",
-            x: event.clientX - rect.left, // Adjust x by subtracting the screen's left position
-            y: event.clientY - rect.top,  // Adjust y by subtracting the screen's top position
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
         });
     });
 
@@ -228,15 +189,12 @@ function captureClientEvents() {
             y: event.clientY - rect.top,
         });
     });
-
 }
 
-
-
-// Send captured events to Firebase
+// Send control events to Firebase
 function sendControlEvent(event) {
-    console.log("client Code:- " + clientCodeForControl);
-    const controlRef = ref(rtdb, 'sessions/' + clientCodeForControl + '/controlEvents');
+    if (!clientCodeForControl) return;
+    const controlRef = ref(rtdb, `sessions/${clientCodeForControl}/controlEvents`);
     set(controlRef, event);
 }
 
